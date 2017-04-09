@@ -1,5 +1,5 @@
 # lazy_table
-a lazy load table from binary data libary. the real value will only load when used. you can use it as a simply database libary. ;)
+A libary for loading table lazyly from binary data. the real value will only be loaded when used. you can use it as a simple database libary. ;)
 
 ### encode
 serialize table object to binary data file.
