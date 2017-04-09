@@ -29,3 +29,6 @@ print(source_obj.int[3])
 -- test_string
 ~~~
 
+### example
+read [`t.lua`](https://github.com/lvzixun/lazy_table/blob/master/t.lua) file for more detail.
+
