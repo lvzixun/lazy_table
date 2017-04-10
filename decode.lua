@@ -189,6 +189,9 @@ local function index_get_value(meta_value, reader)
 end
 
 local function index_meta_index(raw, key)
+    if key == nil then
+        return nil
+    end
     local mt = getmetatable(raw)
     local meta_info  = mt.__meta_info
     local meta_value = meta_info[key]
