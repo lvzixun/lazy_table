@@ -1,5 +1,6 @@
 local wire_type = require "wire_type"
 
+local type = type
 local reader_mt = {}
 reader_mt.__index = reader_mt
 
@@ -62,12 +63,17 @@ local function read_offset(self)
 end
 
 local function read_offset_value(self, pos)
-    local cur_pos = self.v_file_handle:seek("cur")
-    self.v_file_handle:seek("set", pos)
-    local type, v = self:read_value()
-    assert(type~=wire_type.OFFSET_WIRE_TYPE)
-    self.v_file_handle:seek("set", cur_pos)
-    return type, v
+    local v = self.v_cache[pos]
+    if v then
+        return v
+    else
+        local cur_pos = self.v_file_handle:seek("cur")
+        self.v_file_handle:seek("set", pos)
+        local type, v = self:read_value()
+        assert(type~=wire_type.OFFSET_WIRE_TYPE)
+        self.v_file_handle:seek("set", cur_pos)
+        return v
+    end
 end
 
 local function set_value(type, v)
@@ -81,12 +87,11 @@ local function set_value(type, v)
     end
 end
 
-local function set_key(self, type, v)
-    if type == wire_type.OFFSET_WIRE_TYPE then
-        type, v = read_offset_value(self, v)
-        if  type == wire_type.NIL_WIRE_TYPE or 
-            type == wire_type.MAP_WIRE_TYPE or
-            type == wire_type.LIST_WIRE_TYPE then
+local function set_key(self, wtype, v)
+    if wtype == wire_type.OFFSET_WIRE_TYPE then
+        v = read_offset_value(self, v)
+        local tv = type(v)
+        if tv == "nil" or tv == "table" then
             error("invalid key type:"..tostring(key))
         end
     end
@@ -94,14 +99,7 @@ local function set_key(self, type, v)
 end
 
 local function read_list(self)
-    local cur_pos = self.v_file_handle:seek("cur")
-    local cache_value = self.v_cache[cur_pos]
-    if cache_value then
-        return cache_value
-    end
     local list = {}
-    local index_obj = index_new(list, self)
-    self.v_cache[cur_pos] = index_obj
     local s = self.v_file_handle:read(4)
     local entry_len = string.unpack("<I4", s)
     -- print("read list entry_len:"..(entry_len))
@@ -109,19 +107,12 @@ local function read_list(self)
         local type, v = self:read_value()
         list[i] = set_value(type, v)
     end
-    return index_obj
+    return index_new(list, self)
 end
 
 
 local function read_map(self)
-    local cur_pos = self.v_file_handle:seek("cur")
-    local cache_value = self.v_cache[cur_pos]
-    if cache_value then
-        return cache_value
-    end
     local map = {}
-    local index_obj = index_new(map, self)
-    self.v_cache[cur_pos] = index_obj
     local s = self.v_file_handle:read(4)
     local entry_len = string.unpack("<I4", s)
     -- print("read map entry_len:"..(entry_len))
@@ -133,7 +124,7 @@ local function read_map(self)
         assert(map[key]==nil)
         map[key] = value
     end
-    return index_obj
+    return index_new(map, self)
 end
 
 
@@ -165,12 +156,15 @@ local type_drive_map = {
 
 
 function reader_mt:read_value()
+    local cur_pos = self.v_file_handle:seek("cur")
     local type = read_type(self)
     local f = type_drive_map[type]
     if not f then
         error("invalid type:"..tostring(type))
     end
     local v = f(self)
+    assert(self.v_cache[cur_pos]==nil)
+    self.v_cache[cur_pos] = v
     return type, v
 end
 
@@ -179,7 +173,7 @@ end
 local function index_get_value(meta_value, reader)
     local tv = type(meta_value)
     if tv == "number" then  -- offset 
-        local type, v = read_offset_value(reader, meta_value)
+        local v = read_offset_value(reader, meta_value)
         return v
     elseif tv == "table" then -- value
         return meta_value.value
