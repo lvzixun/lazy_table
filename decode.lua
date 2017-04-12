@@ -1,6 +1,8 @@
 local wire_type = require "wire_type"
 
 local type = type
+local assert = assert
+
 local reader_mt = {}
 reader_mt.__index = reader_mt
 
