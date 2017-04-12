@@ -13,7 +13,7 @@ local source = {
     dd = false,
     [1] = nil,
     [2] = {},
-    [3] = {11, nil, 44},
+    [3] = {"test_string", "aa",  nil, 44},
 }
 
 source[1] = source
