@@ -78,15 +78,18 @@ local function read_offset_value(self, pos)
     end
 end
 
+
+local valid_value_wire_type = {
+    [wire_type.OFFSET_WIRE_TYPE] = true,
+    [wire_type.NIL_WIRE_TYPE] = true,
+    [wire_type.TRUE_WIRE_TYPE] = true,
+    [wire_type.FALSE_WIRE_TYPE] = true,
+}
 local function set_value(type, v)
-    if type == wire_type.OFFSET_WIRE_TYPE then
-        return v
-    else
-        return {
-            type = type,
-            value = v,
-        }
+    if not valid_value_wire_type[type] then
+        error("invalid value wire type: "..tostring(type))
     end
+    return v
 end
 
 local function set_key(self, wtype, v)
@@ -177,10 +180,8 @@ local function index_get_value(meta_value, reader)
     if tv == "number" then  -- offset 
         local v = read_offset_value(reader, meta_value)
         return v
-    elseif tv == "table" then -- value
-        return meta_value.value
     else
-        return nil
+        return meta_value
     end
 end
 
