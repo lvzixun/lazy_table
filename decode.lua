@@ -64,14 +64,14 @@ local function read_offset(self)
     return v
 end
 
-local function read_offset_value(self, pos)
+local function read_offset_value(self, pos, patch_table)
     local v = self.v_cache[pos]
     if v then
         return v
     else
         local cur_pos = self.v_file_handle:seek("cur")
         self.v_file_handle:seek("set", pos)
-        local type, v = self:read_value()
+        local type, v = self:read_value(patch_table)
         assert(type~=wire_type.OFFSET_WIRE_TYPE)
         self.v_file_handle:seek("set", cur_pos)
         return v
@@ -103,7 +103,19 @@ local function set_key(self, wtype, v)
     return v
 end
 
-local function read_list(self)
+local function set_patch(patch_table, t)
+    if patch_table then
+        for k,v in pairs(patch_table) do
+            if v=="__NIL_VALUE__" then
+                t[k] = nil
+            elseif t[k]==nil then
+                t[k] = "__NEW_VALUE__"
+            end
+        end
+    end
+end
+
+local function read_list(self, patch_table)
     local list = {}
     local s = self.v_file_handle:read(4)
     local entry_len = string.unpack("<I4", s)
@@ -112,11 +124,12 @@ local function read_list(self)
         local type, v = self:read_value()
         list[i] = set_value(type, v)
     end
-    return index_new(list, self)
+    set_patch(patch_table, list)
+    return index_new(list, self, patch_table)
 end
 
 
-local function read_map(self)
+local function read_map(self, patch_table)
     local map = {}
     local s = self.v_file_handle:read(4)
     local entry_len = string.unpack("<I4", s)
@@ -129,7 +142,8 @@ local function read_map(self)
         assert(map[key]==nil)
         map[key] = value
     end
-    return index_new(map, self)
+    set_patch(patch_table, map)
+    return index_new(map, self, patch_table)
 end
 
 
@@ -160,14 +174,14 @@ local type_drive_map = {
 }
 
 
-function reader_mt:read_value()
+function reader_mt:read_value(patch_table)
     local cur_pos = self.v_file_handle:seek("cur")
     local type = read_type(self)
     local f = type_drive_map[type]
     if not f then
         error("invalid type:"..tostring(type))
     end
-    local v = f(self)
+    local v = f(self, patch_table)
     assert(self.v_cache[cur_pos]==nil)
     self.v_cache[cur_pos] = v
     return type, v
@@ -175,10 +189,10 @@ end
 
 
 ------------------ index ------------------
-local function index_get_value(meta_value, reader)
+local function index_get_value(meta_value, reader, patch_table)
     local tv = type(meta_value)
     if tv == "number" then  -- offset 
-        local v = read_offset_value(reader, meta_value)
+        local v = read_offset_value(reader, meta_value, patch_table)
         return v
     else
         return meta_value
@@ -192,7 +206,17 @@ local function index_meta_index(raw, key)
     local mt = getmetatable(raw)
     local meta_info  = mt.__meta_info
     local meta_value = meta_info[key]
-    local v = index_get_value(meta_value, mt.__reader)
+    local patch_table = mt.__patch_table
+    local pv = nil
+    if patch_table then
+        pv = patch_table[key]
+        if pv=="__NIL_VALUE__" then
+            return nil
+        elseif meta_value=="__NEW_VALUE__" or pv~=nil and type(pv)~="table" then
+            return pv
+        end
+    end
+    local v = index_get_value(meta_value, mt.__reader, pv)
     rawset(raw, key, v)
     return v
 end
@@ -222,11 +246,12 @@ local function index_meta_pairs(raw)
     return __meta_next, raw
 end
 
-index_new = function (meta_info, reader)
+index_new = function (meta_info, reader, patch_table)
     local raw = {}
     local mt  = {
         __reader = reader,
         __meta_info = meta_info,
+        __patch_table = patch_table,
         __index = index_meta_index,
         __len = index_meta_len,
         __pairs = index_meta_pairs,
@@ -235,9 +260,9 @@ index_new = function (meta_info, reader)
 end
 
 
-local function decode_binary_data(file_handle)
+local function decode_binary_data(file_handle, patch_table)
     local reader = reader_new(file_handle)
-    local type, v = reader:read_value()
+    local type, v = reader:read_value(patch_table)
     if type ~= wire_type.MAP_WIRE_TYPE and type ~= wire_type.LIST_WIRE_TYPE then
         error("invalid binary data head, must map or list type")
     end
