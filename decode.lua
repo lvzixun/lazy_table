@@ -38,7 +38,7 @@ end
 local function read_string(self)
     local sz_s = self.v_file_handle:read(2)
     local sz = string.unpack("<I2", sz_s)
-    local s = self.v_file_handle:read(sz)
+    local s = sz >0 and self.v_file_handle:read(sz) or ""
     -- print("read_string size: "..(sz+2).." value:"..s)
     return s
 end
