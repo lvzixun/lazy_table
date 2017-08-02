@@ -1,5 +1,6 @@
 local pairs = pairs
 local type = type
+local next = next
 
 local function diff(base_t, new_t, patch_t)
     -- check base table
@@ -13,8 +14,11 @@ local function diff(base_t, new_t, patch_t)
         
         -- diff next table
         elseif bv_t=="table" and nv_t=="table" then
-            patch_t[k] = {}
-            diff(bv, nv, patch_t[k])
+            local nt = {}
+            diff(bv, nv, nt)
+            if next(nt) then
+                patch_t[k] = nt
+            end
         
         -- modify key
         elseif bv~=nv then
