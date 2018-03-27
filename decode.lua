@@ -217,6 +217,9 @@ local function index_meta_index(raw, key)
         end
     end
     local v = index_get_value(meta_value, mt.__reader, pv)
+    if type(v)~="table" and pv then
+        return pv
+    end
     rawset(raw, key, v)
     return v
 end
