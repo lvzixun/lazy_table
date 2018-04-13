@@ -19,7 +19,10 @@ local function check_table(t1, t2)
     for k,v1 in pairs(t1) do
         local v2 = t2[k]
         if type(v1)=="table" and type(v2)=="table" then
-            check_table(v1, v2)
+            local ok = check_table(v1, v2)
+            if not ok then
+                return false
+            end
         elseif v1~=v2 then
             return false
         end
